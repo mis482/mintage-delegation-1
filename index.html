@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mintage Delegation Hub</title>
+<meta name="theme-color" content="#d02229">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Delegation">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#fff;
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  #app { position:fixed; inset:0; width:100%; height:100%; border:0;
+    padding-top: env(safe-area-inset-top); box-sizing:border-box; background:#fff; }
+
+  /* Splash */
+  #splash { position:fixed; inset:0; z-index:10; background:#fff; display:flex;
+    flex-direction:column; align-items:center; justify-content:center; gap:18px; transition:opacity .35s; }
+  #splash img { width:96px; height:96px; border-radius:22px; box-shadow:0 6px 20px rgba(183,28,28,.25); }
+  #splash .name { font-size:18px; font-weight:700; color:#d02229; }
+  .spin { width:30px; height:30px; border:3px solid #f3d0d0; border-top-color:#d02229;
+    border-radius:50%; animation:r .8s linear infinite; }
+  @keyframes r { to { transform:rotate(360deg); } }
+  #splash.hide { opacity:0; pointer-events:none; }
+
+  /* Offline / error bar */
+  #bar { position:fixed; left:0; right:0; bottom:0; z-index:20; display:none;
+    background:#d02229; color:#fff; font-size:14px; padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+    align-items:center; justify-content:space-between; gap:10px; }
+  #bar button { background:#fff; color:#d02229; border:0; border-radius:6px;
+    padding:6px 12px; font-weight:700; font-size:13px; }
+
+  /* Install button (sirf browser mein, installed app mein nahi dikhega) */
+  #install { position:fixed; right:14px; bottom:calc(14px + env(safe-area-inset-bottom)); z-index:15; display:none;
+    background:#d02229; color:#fff; border:0; border-radius:24px; padding:10px 16px;
+    font-weight:700; font-size:14px; box-shadow:0 4px 14px rgba(0,0,0,.25); }
+</style>
+</head>
+<body>
+
+<div id="splash">
+  <img src="icon-192.png" alt="Mintage">
+  <div class="name">Mintage Delegation Hub</div>
+  <div class="spin"></div>
+</div>
+
+<iframe id="app" title="Mintage" allow="clipboard-read; clipboard-write; camera; geolocation"></iframe>
+
+<div id="bar"><span id="barText">Internet nahi hai</span><button onclick="reloadApp()">Retry</button></div>
+<button id="install">⬇ Install App</button>
+
+<script>
+  // ============ YAHAN APNA APPS SCRIPT WEB APP URL PASTE KARO (/exec wala) ============
+  const APP_URL = 'https://script.google.com/macros/s/AKfycbwwW7lFRXzJXzvXcpl7EAZ20k_RD-rwzUDTHH6VmLE1XwprXPmJYQkGHxv0JLHyf0T6Ug/exec';
+  // =====================================================================================
+
+  const frame = document.getElementById('app');
+  const splash = document.getElementById('splash');
+  const bar = document.getElementById('bar');
+  const barText = document.getElementById('barText');
+  let loaded = false, slowTimer;
+
+  function showBar(msg) { barText.textContent = msg; bar.style.display = 'flex'; }
+  function hideBar() { bar.style.display = 'none'; }
+
+  function loadApp() {
+    loaded = false;
+    if (!navigator.onLine) { splash.classList.add('hide'); showBar('Internet nahi hai — connect karke Retry dabao'); return; }
+    splash.classList.remove('hide');
+    frame.src = APP_URL;
+    clearTimeout(slowTimer);
+    slowTimer = setTimeout(() => { if (!loaded) showBar('Load hone mein time lag raha hai...'); }, 15000);
+  }
+  function reloadApp() { hideBar(); frame.src = 'about:blank'; setTimeout(loadApp, 50); }
+
+  frame.addEventListener('load', () => {
+    if (frame.src === 'about:blank' || !frame.src) return;
+    loaded = true; clearTimeout(slowTimer); hideBar();
+    setTimeout(() => splash.classList.add('hide'), 250);
+  });
+
+  window.addEventListener('offline', () => showBar('Internet nahi hai'));
+  window.addEventListener('online', () => { hideBar(); if (!loaded) loadApp(); });
+
+  // Service worker (install ke liye zaroori)
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+
+  // Install button (Android Chrome)
+  let deferredPrompt;
+  const installBtn = document.getElementById('install');
+  const isInstalled = window.matchMedia('(display-mode: standalone)').matches ||
+                      window.matchMedia('(display-mode: fullscreen)').matches || navigator.standalone;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault(); deferredPrompt = e;
+    if (!isInstalled) installBtn.style.display = 'block';
+  });
+  installBtn.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt(); await deferredPrompt.userChoice;
+    deferredPrompt = null; installBtn.style.display = 'none';
+  });
+  window.addEventListener('appinstalled', () => installBtn.style.display = 'none');
+
+  loadApp();
+</script>
+</body>
+</html>
